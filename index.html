@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+	<meta charset="UTF-8">
+	<title>Vue Battle</title>
+	<script src="src/vue.min.js"></script>
+	<link rel="stylesheet" type="text/css" href="src/pure.min.css" />
+	<link rel="stylesheet" type="text/css" href="src/app.css" />
+</head>
+<body>
+<div id="app" :class="'row'">
+	<fieldset class="col-1" style="height: 260px;">
+		<div class="tips" :style="{display:tiphtml!=''?'block':'none',bottom:(cy||0)+'px',left:(cx||0)+'px'}" v-html="tiphtml"></div>
+		<legend align="center" style="font-size: 24px;">&nbsp;&nbsp;&nbsp;无尽的对砍&nbsp;&nbsp;&nbsp;</legend>
+		<div class="pinfo">
+			<p><b>{{ p.name||'无名英雄' }} {{ p.lv>1?p.lv+'转':'' }}</b></p><hr>
+			<em class="icon-1"></em> ：{{ xint(p.hp) }}/{{ xint(p.mhp) }}<br>
+			<em class="icon-2"></em> ：{{ xint(p.att) }}<br>
+			<span v-for="(re,index) in res" v-if="re > 0">
+				<em :class="'icon-'+(index+3)"></em> ：{{ xint(re) }}<br>
+			</span>
+		</div>
+		<div class="pinfo r">
+			<p><b>{{ e.name||'' }}</b></p><hr>
+			{{ xint(e.hp) }}/{{ xint(e.mhp) }} ：<em class="icon-1"></em><br>
+			{{ xint(e.att) }} ：<em class="icon-2"></em><br>
+			{{ xint(e.gold * p.lv) }} ：<em class="icon-3"></em><br>
+		</div>
+		<div class="char">
+			<div class="progress" style="width: 80px;">
+				<div class="progress-bar" :style="{ background:'#F33', width: 100*(p.hp/p.mhp) +'%' }">
+					<span v-if="e.dmg">{{e.dmg}}</span>
+				</div>
+			</div><br>
+			<div v-if="p.timer < 0">
+				<div class="progress" style="width: 60px;">
+					<div class="progress-bar" :style="{ background:'#0F0', height:'2px', width: 100*(p.timer/-100) +'%' }"></div>
+				</div>
+				<p>复活中....</p>
+			</div>
+			<div v-else>
+				<div class="progress" style="width: 60px;">
+					<div class="progress-bar" :style="{ background:'#0F0', height:'2px', width: 100*(p.timer/p.spd) +'%' }"></div>
+				</div>
+			</div>
+			<div class="icon" :style="{ left : pleft+'px' }"></div>
+		</div>
+		<div class="char r">
+			<div class="progress" style="width: 80px;">
+				<div class="progress-bar" :style="{ background:'#F33', width: 100*(e.hp/e.mhp) +'%' }">
+					<span v-if="p.dmg">{{p.dmg}}</span>
+				</div>
+			</div><br>
+			<div v-if="p.timer < 0">
+				<p>哇.哈哈哈..</p>
+			</div>
+			<div class="progress" style="width: 60px;">
+				<div class="progress-bar" :style="{ background:'#0F0', height:'2px', width: 100*(e.timer/e.spd) +'%' }"></div>
+			</div>
+			<div class="icon" :style="{ left : eleft+'px','background-position': ebox[0]+'px '+ebox[1]+'px',width:ebox[2]+'px',height:ebox[3]+'px' }"></div>
+		</div>
+		<div class="bar">
+			<h1>第 {{ (maxlv+'').split('.').join('-') }} 层</h1>
+			<div class="btn-group">
+				<button class="btn btn-sm" @click="maxlv=((maxlv>1)?(maxlv*10-1)/10:1); changemob(maxlv);auto=false;">减</button>
+				<button class="btn btn-sm" @click="maxlv=((maxlv<topLv)?(maxlv*10+1)/10:maxlv); changemob(maxlv);auto=maxlv==topLv;">加</button>
+				<button class="btn btn-sm" @click="maxlv=topLv;changemob(maxlv);auto=true;">Max</button>
+			</div>
+			<label><input class="input" type="checkbox" name="" v-model="auto"> 自动挑战下一层</label><br><br>
+			<span v-if="boss < Math.floor(topLv/5)">
+				哇咔咔 有只BOSS看不惯你~ <br>
+				<button class="btn btn-danger" @click="changemob(boss+1,'b');">
+					挑战BOSS [ {{boss}}/{{Math.floor(topLv/5)}} ]
+				</button>
+			</span>
+		</div>
+	</fieldset>
+	<fieldset class="col-1" style="padding-bottom: 0;">
+		<div class="row">
+			<div v-if="builds.length > 0" class="build col-1-3" v-for="(b,index) in builds">
+				<fieldset>
+					<div class="progress pull-right" style="width: 80px">
+						<div class="progress-bar" :style="{ background:'#0F0', height:'2px', width: 100*(b.timer/b.spd) +'%' }">
+							<span v-if="b.timer >= b.spd-10" style="left:0;bottom:-20px;width: 80px; text-align: right;">
+								<b>+{{ Math.ceil(Math.pow(b.lv,2)*(1+(p.lv-1)*0.5)) }}</b>
+							</span>
+						</div>
+					</div>
+					{{ b.name }}
+					Lv {{ b.lv }}
+					<hr>
+					<button class="btn btn-sm btn-info pull-right"
+							v-if="b.spd > 200"
+							@mouseover="ck($event,'bspd',index);"
+							@mouseout="ckhide"
+							@click="up($event,'bspd',index)">周期 -500ms = {{ b.spd/20 }}s</button>
+					<div class="btn-group">
+						<button class="btn btn-sm btn-success"
+								@mouseover="ck($event,'blv0',index);"
+								@mouseout="ckhide"
+								@click="up($event,'blv0',index)">Lv +1</button>
+						<button class="btn btn-sm"
+								v-if="b.lv > 20"
+								@mouseover="ck($event,'blv1',index);"
+								@mouseout="ckhide"
+								@click="up($event,'blv1',index)">+10</button>
+					</div>
+				</fieldset>
+			</div>
+			<button style="margin-bottom: 5px;"
+					class="col-1-3 btn btn-lg btn-primary"
+					v-if="builds.length < 3"
+					@click="bd">
+				建造资源建筑 <em class="icon-3"></em> x{{ Math.pow(10,builds.length)*10 }}
+			</button>
+		</div>
+	</fieldset>
+	<div class="col-1">
+		<div class="row">
+			<div class="col-1-3 up">
+				<fieldset>
+					<legend>升级英雄</legend>
+					<div class="btn-group">
+						<button class="btn btn-sm btn-success"
+								@mouseover="ck($event,'mhp',0);"
+								@mouseout="ckhide"
+								@click="up($event,'mhp',0)">生命 +1</button>
+						<button class="btn btn-sm"
+								v-if="p.mhp >= 20"
+								@mouseover="ck($event,'mhp',1);"
+								@mouseout="ckhide"
+								@click="up($event,'mhp',1)">+10</button>
+						<button class="btn btn-sm"
+								v-if="p.mhp >= 80"
+								@mouseover="ck($event,'mhp',2);"
+								@mouseout="ckhide"
+								@click="up($event,'mhp',2)">+100</button>
+					</div>
+					<div class="btn-group">
+						<button class="btn btn-sm btn-danger"
+								@mouseover="ck($event,'att',0);"
+								@mouseout="ckhide"
+								@click="up($event,'att',0)">攻击 +1</button>
+						<button class="btn btn-sm"
+								v-if="p.att >= 20"
+								@mouseover="ck($event,'att',1);"
+								@mouseout="ckhide"
+								@click="up($event,'att',1)">+10</button>
+						<button class="btn btn-sm"
+								v-if="p.att >= 80"
+								@mouseover="ck($event,'att',2);"
+								@mouseout="ckhide"
+								@click="up($event,'att',2)">+100</button>
+					</div>
+					<button v-if="p.spd > 20" class="btn btn-sm btn-info"
+							@mouseover="ck($event,'spd');"
+							@mouseout="ckhide"
+							@click="up($event,'spd',-1)">攻速 -100ms = {{ p.spd/20 }}s</button>
+					<button v-if="p.spd <= 20" class="btn btn-sm btn-info">
+						攻速：{{ p.spd/20 }}s
+					</button>
+					<hr style="margin: 10px 0;">
+					<div>
+						<button v-if="maxlv >= 15 + p.lv * 5"
+								class="btn btn-primary btn-block"
+								@click="zs">
+							英雄转生
+						</button>
+						<span v-else>
+							转生条件：达到第 <b>{{15 + p.lv * 5}}</b> 层
+						</span>
+					</div>
+				</fieldset>
+			</div>
+			<div class="col-1-3 up">
+				<fieldset>
+					<legend>强化武器 Lv：{{ p.elv }} &nbsp;</legend>
+					武器附加属性<hr>
+					<ul>
+						<li>攻击力   + {{ (p.lv-1)*5  + p.lv*p.elv }} %</li>
+						<li>暴击几率 + {{ Math.ceil(p.elv/3) }} %</li>
+						<li>暴击伤害 + {{ (p.lv-1)*20 + Math.ceil(p.elv/10)*5 }} %</li>
+						<li>金币获取 + {{ (p.lv-1)*100 }} %</li>
+						<li>资源获取 + {{ (p.lv-1)*50 }} %</li>
+					</ul><hr>
+					<button class="btn btn-sm btn-warning"
+							v-if="p.elv < Math.ceil(p.att/5)"
+							@mouseover="ck($event,'elv');"
+							@mouseout="ckhide"
+							@click="up($event,'elv',0)">
+						强化英雄武器 Lv： {{ p.elv }} / {{ Math.ceil(p.att/5) }}
+					</button>
+				</fieldset>
+			</div>
+			<div class="col-1-3 up">
+				<fieldset style="font-size: 12px;">
+					<legend>简单说明</legend>
+					嗯..
+					<br>小游戏是学习理解vue.js时做的..
+					<br><br>
+					有需要游戏源码的 <a href="vue.zip">点这可以下载</a>
+					<br>图片资源切勿商用<br>
+					<br>x4code
+					<br>2017.8.23
+					<br><span class="pull-right">你的呱唧时间 : {{ ftime(count) }}</span>
+				</fieldset>
+			</div>
+		</div>
+	</div>
+</div>
+<script src="src/app.min.js"></script>
+</body>
+</html>
